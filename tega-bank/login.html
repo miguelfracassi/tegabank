@@ -1,0 +1,33 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Sign in · Tega Bank</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"><meta name="theme-color" content="#2251FF">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="authpage"><div id="app"></div><script src="/app.js"></script><script>
+let mode = location.search.includes('signup') ? 'signup' : 'signin', msg = null;
+const art = `<svg viewBox="0 0 400 420" aria-hidden="true"><g transform="rotate(-8 200 210)"><rect x="60" y="70" width="280" height="170" rx="26" fill="#7C9BFF" opacity=".5"/></g>
+<g transform="rotate(-3 200 210)"><rect x="50" y="95" width="290" height="176" rx="26" fill="#9FB6FF" opacity=".7"/></g>
+<rect x="40" y="125" width="300" height="184" rx="28" fill="#fff"/><circle cx="82" cy="165" r="14" fill="#2251FF"/><rect x="108" y="155" width="90" height="10" rx="5" fill="#0E1B3D"/><rect x="108" y="173" width="60" height="8" rx="4" fill="#C9D4FF"/>
+<text x="70" y="250" font-family="Bricolage Grotesque,sans-serif" font-weight="700" font-size="44" fill="#0E1B3D">£1,850<tspan fill="#B5BDD0">.00</tspan></text><rect x="70" y="272" width="240" height="8" rx="4" fill="#E8ECF8"/><rect x="70" y="272" width="200" height="8" rx="4" fill="#2251FF"><animate attributeName="width" from="0" to="200" dur="1.4s" fill="freeze"/></rect>
+<g><circle cx="330" cy="100" r="30" fill="#18A957"><animate attributeName="cy" values="100;88;100" dur="4s" repeatCount="indefinite"/></circle><path d="M318 100l8 8 14-16" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></g></svg>`;
+function view() {
+  const su = mode === 'signup';
+  $app.innerHTML = `<div class="split"><div class="auth"><a class="logo" href="/"><img src="/favicon.svg" alt="" width="40" height="40">Tega Bank</a>
+  <h1 class="page-h" style="font-size:34px">${su ? 'Create your account' : 'Welcome back'}</h1>
+  <p class="mute">${su ? 'Sign up to see all your finances in one place.' : 'Sign in to see your finances.'}</p>
+  
+  <form id="f">${su ? '<label>Full name</label><input name="name" required>' : ''}<label>Email</label><input name="email" type="email" autocomplete="email" required>
+  <label>Password</label><input name="password" type="password" minlength="8" autocomplete="${su ? 'new-password' : 'current-password'}" required>
+  ${msg ? `<p class="msg ${msg[0]}">${esc(msg[1])}</p>` : ''}<button class="cta">${su ? 'Create account' : 'Sign in'}</button></form>
+  <button class="link" id="swap">${su ? 'I already have an account' : 'Create an account'}</button></div>
+  <aside class="art"><div><h2 class="page-h" style="font-size:38px">Your money,<br>in one calm place.</h2>${art}</div></aside></div>`;
+  document.getElementById('swap').onclick = () => { mode = su ? 'signin' : 'signup'; msg = null; view(); };
+  document.getElementById('f').onsubmit = async e => {
+    e.preventDefault();
+    const f = new FormData(e.target); e.target.querySelector('button.cta').disabled = true;
+    try { await api('/api/auth', 'POST', { action: su ? 'signup' : 'login', name: f.get('name'), email: f.get('email'), password: f.get('password') }); location.href = '/home'; }
+    catch (err) { msg = ['err', err.message]; view(); }
+  };
+}
+api('/api/me').then(() => location.replace('/home')).catch(view);
+</script></body></html>

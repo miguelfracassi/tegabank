@@ -1,0 +1,35 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Plans · Tega Bank</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"><meta name="theme-color" content="#2251FF"><link rel="stylesheet" href="/style.css">
+</head><body><div id="app"></div><script src="/app.js"></script><script>
+window.bind = (ctx, render) => {
+  const run = async fn => { try { await fn(); render(); } catch (e) { toast(e.message); } };
+  document.getElementById('newgoal').onclick = async () => {
+    const v = await modal('New goal', [{ name: 'name', label: 'Goal name', ph: 'Holiday, laptop…' }, { name: 'target', label: 'Target (£)', type: 'number', step: '0.01' }], 'Create goal');
+    if (v) run(async () => { await api('/api/goals', 'POST', { action: 'create', name: v.name, target: v.target }); toast('Goal created'); });
+  };
+  document.querySelectorAll('[data-move]').forEach(b => b.onclick = async () => {
+    const inn = b.dataset.dir === 'in';
+    const v = await modal(inn ? 'Add to goal' : 'Withdraw from goal', [{ name: 'amount', label: 'Amount (£)', type: 'number', step: '0.01' }], inn ? 'Add money' : 'Withdraw');
+    if (v) run(async () => { await api('/api/goals', 'POST', { action: 'move', id: b.dataset.move, amount: inn ? +v.amount : -v.amount }); toast(inn ? 'Added to goal' : 'Withdrawn'); });
+  });
+  document.querySelectorAll('[data-delg]').forEach(b => b.onclick = () => { if (confirm('Delete this goal? Any saved money returns to your balance.')) run(() => api('/api/goals?id=' + b.dataset.delg, 'DELETE')); });
+  document.getElementById('newbud').onclick = async () => {
+    const v = await modal('Set a budget', [{ name: 'category', label: 'Category', options: EXP }, { name: 'amount', label: 'Monthly limit (£)', type: 'number', step: '0.01' }], 'Save budget');
+    if (v) run(async () => { await api('/api/budgets', 'POST', { category: v.category, amount: v.amount }); toast('Budget saved'); });
+  };
+  document.querySelectorAll('[data-delb]').forEach(b => b.onclick = () => run(() => api('/api/budgets?category=' + encodeURIComponent(b.dataset.delb), 'DELETE')));
+};
+boot('plans', ({ tx, goals, budgets }) => {
+  const spent = spentByCat(tx), total = goals.reduce((a, g) => a + g.saved, 0);
+  const gl = goals.map(g => { const p = g.saved / g.target * 100; return `<div class="item"><div class="hd"><b>${esc(g.name)}</b><span>${Math.round(p)}%</span></div>${progress(p, g.saved >= g.target ? 'done' : '')}
+    <small>${gbp(g.saved)} saved of ${gbp(g.target)}${g.saved >= g.target ? ' · Goal reached' : ' · ' + gbp(g.target - g.saved) + ' to go'}</small>
+    <div class="btns"><button class="mini" data-move="${g.id}" data-dir="in">Add</button><button class="mini" data-move="${g.id}" data-dir="out">Withdraw</button><button class="mini del" data-delg="${g.id}">Delete</button></div></div>`; }).join('');
+  const bl = budgets.map(b => { const s = spent[b.category] || 0, p = s / b.amount * 100;
+    return `<div class="item"><div class="hd"><b>${esc(b.category)}</b><span>${gbp(s)} of ${gbp(b.amount)}</span></div>${progress(p, p >= 100 ? 'bad' : p >= 80 ? 'warn' : '')}
+    <small>${s > b.amount ? gbp(s - b.amount) + ' over budget' : gbp(b.amount - s) + ' left this month'}</small><div class="btns"><button class="mini del" data-delb="${esc(b.category)}">Remove</button></div></div>`; }).join('');
+  return `<h1 class="page-h">Plans</h1><p class="mute">${goals.length ? gbp(total) + ' set aside in goals' : 'Set goals and budgets to stay on track'}</p>
+  <div class="hgrid plans" style="margin-top:22px"><div><div class="sec"><h2>Savings goals</h2></div>${gl}<button class="add" id="newgoal">+ New goal</button></div>
+  <div><div class="sec"><h2>Monthly budgets</h2></div>${bl}<button class="add" id="newbud">+ Set a budget</button></div></div>`;
+});
+</script></body></html>
