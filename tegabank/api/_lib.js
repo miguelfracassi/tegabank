@@ -26,6 +26,6 @@ function userId(req) {
   try { return jwt.verify(cookies(req.headers.cookie).session, secret()).sub; } catch { return null; }
 }
 const wrap = fn => async (req, res) => {
-  try { await fn(req, res); } catch (e) { console.error(e); send(res, 500, { error: 'Server error. Check the Vercel logs.' }); }
+  try { await fn(req, res); } catch (e) { console.error(e); send(res, 500, { error: 'Server error: ' + String(e.message || 'unknown').slice(0, 200) }); }
 };
 module.exports = { q, send, setSession, clearSession, userId, wrap };
