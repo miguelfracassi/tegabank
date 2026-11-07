@@ -1,0 +1,36 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Settings · Tega Bank</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"><meta name="theme-color" content="#2251FF"><link rel="stylesheet" href="/style.css">
+</head><body><div id="app"></div><script src="/app.js"></script><script>
+window.bind = (ctx, render) => {
+  const run = async (fn, ok) => { try { await fn(); if (ok) toast(ok); render(); } catch (e) { toast(e.message); } };
+  document.querySelectorAll('[data-th]').forEach(b => b.onclick = () => { setTheme(b.dataset.th); render(); });
+  document.getElementById('rename').onclick = async () => {
+    const v = await modal('Change name', [{ name: 'name', label: 'Full name', value: ctx.name }]);
+    if (v) run(() => api('/api/account', 'POST', { action: 'name', name: v.name }), 'Name updated');
+  };
+  document.getElementById('pass').onclick = async () => {
+    const v = await modal('Change password', [{ name: 'current', label: 'Current password', type: 'password' }, { name: 'password', label: 'New password (8+ characters)', type: 'password' }], 'Update password');
+    if (v) run(() => api('/api/account', 'POST', { action: 'password', current: v.current, password: v.password }), 'Password updated');
+  };
+  document.getElementById('csv').onclick = () => exportCsv(ctx.tx);
+  document.getElementById('wipe').onclick = () => { if (confirm('Delete ALL your transactions? This cannot be undone.')) run(() => api('/api/transactions?all=1', 'DELETE'), 'All transactions deleted'); };
+  document.getElementById('del').onclick = async () => {
+    const v = await modal('Delete account', [{ name: 'current', label: 'Type your password to confirm', type: 'password' }], 'Delete forever');
+    if (v) try { await api('/api/account', 'POST', { action: 'delete', current: v.current }); location.href = '/'; } catch (e) { toast(e.message); }
+  };
+};
+boot('settings', ({ user, name, tx }) => {
+  const dark = document.documentElement.dataset.theme === 'dark';
+  return `<h1 class="page-h">Settings</h1><p class="mute">Your account and preferences</p>
+  <div class="card" style="margin-top:22px"><h3>Profile</h3>
+    <div class="srow"><div><b>${esc(name)}</b><small>Name</small></div><button class="mini" id="rename">Edit</button></div>
+    <div class="srow"><div><b>${esc(user.email)}</b><small>Email</small></div></div></div>
+  <div class="card"><h3>Appearance</h3><div class="seg" style="margin:0"><button data-th="light" class="${dark ? '' : 'on'}">Light</button><button data-th="dark" class="${dark ? 'on' : ''}">Dark</button></div></div>
+  <div class="card"><h3>Security</h3><div class="srow"><div><b>Password</b><small>Use at least 8 characters</small></div><button class="mini" id="pass">Change</button></div></div>
+  <div class="card"><h3>Your data</h3>
+    <div class="srow"><div><b>Export transactions</b><small>${tx.length} in total, as CSV</small></div><button class="mini" id="csv">Export</button></div>
+    <div class="srow"><div><b>Delete all transactions</b><small>Keeps your account, goals and budgets</small></div><button class="mini del" id="wipe" style="color:var(--bad)">Delete</button></div></div>
+  <div class="card"><h3>Danger zone</h3><div class="srow"><div><b>Delete account</b><small>Removes your account and everything in it</small></div><button class="mini del" id="del" style="color:var(--bad)">Delete</button></div></div>`;
+});
+</script></body></html>
