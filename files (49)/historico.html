@@ -1,0 +1,26 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>History · Tega Bank</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"><meta name="theme-color" content="#2251FF"><link rel="stylesheet" href="/style.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script></head><body><div id="app"></div><script src="/app.js"></script><script>
+let type = 'all', month = 'all', q = '';
+window.bind = (ctx, render) => {
+  document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { type = b.dataset.f; render(); });
+  document.getElementById('month').onchange = e => { month = e.target.value; render(); };
+  document.getElementById('q').onchange = e => { q = e.target.value; render(); };
+  document.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (confirm('Delete this transaction?')) { await sb.from('transactions').delete().eq('id', b.dataset.del); render(); } });
+};
+boot('historico', ({ tx }) => {
+  const months = [...new Set(tx.map(t => t.created_at.slice(0, 7)))];
+  const list = tx.filter(t => (month === 'all' || t.created_at.startsWith(month)) && (q === '' || (t.title + t.category).toLowerCase().includes(q.toLowerCase())) &&
+    (type === 'all' || (type === 'in' && t.amount > 0 && t.status !== 'declined') || (type === 'out' && t.amount < 0 && t.status !== 'declined') || (type === 'declined' && t.status === 'declined')));
+  const { inn, out } = totals(list), cats = {};
+  list.filter(t => t.status === 'completed' && t.amount < 0).forEach(t => cats[t.category] = (cats[t.category] || 0) - t.amount);
+  const arr = Object.entries(cats).sort((a, b) => b[1] - a[1]), max = arr[0]?.[1] || 1;
+  return `<h1 class="page-h">History</h1><p class="mute">Organise and review your money</p>
+  <div class="stats"><div class="card"><span class="mute">In</span><div class="bal">${gbp(inn)}</div></div><div class="card"><span class="mute">Out</span><div class="bal">${gbp(out)}</div></div></div>
+  <input id="q" placeholder="Search and press Enter" value="${esc(q)}"><select id="month"><option value="all">All months</option>${months.map(m => `<option value="${m}" ${m === month ? 'selected' : ''}>${new Date(m + '-01').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</option>`).join('')}</select>
+  <div class="chips">${[['all', 'All'], ['in', 'In'], ['out', 'Out'], ['declined', 'Declined']].map(([k, v]) => `<button class="chip ${type === k ? 'on' : ''}" data-f="${k}">${v}</button>`).join('')}</div>
+  ${arr.length ? `<div class="card"><div class="sec"><h2>Spending by category</h2></div>${arr.map(([c, v]) => `<div class="cat"><div><span>${esc(c)}</span><span>${gbp(v)}</span></div><u><i style="width:${v / max * 100}%"></i></u></div>`).join('')}</div>` : ''}
+  <div class="sec"><h2>Transactions</h2></div>${timeline(list, true)}`;
+});
+</script></body></html>
