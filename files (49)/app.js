@@ -1,6 +1,6 @@
 // ====== COLOQUE SUAS CHAVES DO SUPABASE (Project Settings > API) ======
-const SUPABASE_URL = 'https://SEU-PROJETO.supabase.co';
-const SUPABASE_KEY = 'SUA-ANON-PUBLIC-KEY';
+const SUPABASE_URL = 'postgresql://postgres.vavsbavkstqlvrlorymf:heretegabank#@aws-0-us-east-1.pooler.supabase.com:6543/postgres';
+const SUPABASE_KEY = 'heretegabank#';
 // ======================================================================
 const configured = !SUPABASE_URL.includes('SEU-PROJETO');
 const sb = configured ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
