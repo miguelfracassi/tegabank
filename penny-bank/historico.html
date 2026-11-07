@@ -1,0 +1,58 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>History · Penny Bank</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#2251FF"><script>try{document.documentElement.dataset.theme=localStorage.getItem('tega-theme')==='dark'?'dark':'light'}catch(e){}</script><link rel="stylesheet" href="/style.css">
+</head><body><div id="app"></div><script src="/app.js"></script><script>
+let type = 'all', month = 'all', q = '', sort = 'new';
+window.bind = (ctx, render) => {
+  const find = id => ctx.tx.find(t => t.id === id);
+  const run = async (fn, ok) => { try { await fn(); if (ok) toast(ok); await render(); } catch (e) { toast(e.message, true); render(true); } };
+  document.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { type = b.dataset.f; render(true); });
+  document.getElementById('month').onchange = e => { month = e.target.value; render(true); };
+  document.getElementById('sort').onchange = e => { sort = e.target.value; render(true); };
+  // busca ao vivo, sem perder o foco do campo
+  document.getElementById('q').oninput = async e => {
+    q = e.target.value; await render(true);
+    const i = document.getElementById('q'); i.focus(); i.setSelectionRange(i.value.length, i.value.length);
+  };
+  document.getElementById('csv').onclick = () => exportCsv(ctx.tx);
+  document.querySelectorAll('[data-tog]').forEach(b => b.onclick = () => {
+    const t = find(b.dataset.tog), on = !isOn(t); b.classList.toggle('on', on); b.setAttribute('aria-checked', on);
+    run(() => api('/api/transactions', 'PATCH', { id: t.id, active: on }), on ? 'Transaction enabled' : 'Transaction disabled');
+  });
+  document.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+    if (!await ask('Delete this transaction?', 'This cannot be undone. To keep it but ignore it, disable it instead.')) return;
+    await leave(b.closest('.row')); run(() => api('/api/transactions?id=' + b.dataset.del, 'DELETE'), 'Deleted');
+  });
+  document.querySelectorAll('[data-edit]').forEach(b => b.onclick = async () => {
+    const t = find(b.dataset.edit); if (!t) return;
+    const inn = t.amount > 0, list = inn ? INC : EXP;
+    const v = await modal(inn ? 'Edit income' : 'Edit payment', [
+      { name: 'title', label: inn ? 'Source' : 'Recipient or description', value: t.title },
+      { name: 'amount', label: 'Amount (£)', type: 'number', step: '0.01', value: Math.abs(t.amount) },
+      { name: 'category', label: 'Category', options: list.includes(t.category) ? list : [...list, t.category], value: t.category },
+      { name: 'date', label: 'Date', type: 'date', value: ymd(t.created_at), max: ymd(new Date()) },
+      { name: 'status', label: 'Status', options: [['completed', 'Completed'], ['pending', 'Pending'], ['declined', 'Declined']], value: t.status }], 'Save changes');
+    if (!v) return;
+    const amt = Math.abs(+v.amount);
+    run(() => api('/api/transactions', 'PATCH', { id: t.id, title: v.title, amount: inn ? amt : -amt, category: v.category, status: v.status,
+      created_at: v.date && v.date !== ymd(t.created_at) ? new Date(v.date + 'T12:00:00').toISOString() : undefined }), 'Transaction updated');
+  });
+};
+boot('historico', ({ tx }) => {
+  const months = [...new Set(tx.map(t => t.created_at.slice(0, 7)))];
+  let list = tx.filter(t => (month === 'all' || t.created_at.startsWith(month)) && (q === '' || (t.title + t.category).toLowerCase().includes(q.toLowerCase())) &&
+    (type === 'all' || (type === 'in' && t.amount > 0 && t.status !== 'declined') || (type === 'out' && t.amount < 0 && t.status !== 'declined') || (type === 'pending' && t.status === 'pending') || (type === 'declined' && t.status === 'declined')));
+  if (sort === 'big') list = [...list].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)); else if (sort === 'old') list = [...list].reverse();
+  const { inn, out } = totals(list), cats = {};
+  list.filter(t => t.status === 'completed' && isOn(t) && t.amount < 0).forEach(t => cats[t.category] = (cats[t.category] || 0) - t.amount);
+  const arr = Object.entries(cats).sort((a, b) => b[1] - a[1]), max = arr[0]?.[1] || 1;
+  return `<h1 class="page-h">History</h1><p class="mute">Organise and review your money</p>
+  <div class="stats"><div class="card"><span class="mute">In</span><div class="bal">${gbp(inn)}</div></div><div class="card"><span class="mute">Out</span><div class="bal">${gbp(out)}</div></div></div>
+  <input id="q" placeholder="Search" value="${esc(q)}" autocomplete="off">
+  <div class="two"><select id="month"><option value="all">All months</option>${months.map(m => `<option value="${m}" ${m === month ? 'selected' : ''}>${new Date(m + '-01').toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</option>`).join('')}</select>
+  <select id="sort">${[['new', 'Newest first'], ['old', 'Oldest first'], ['big', 'Largest first']].map(([k, v]) => `<option value="${k}" ${sort === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
+  <div class="chips">${[['all', 'All'], ['in', 'In'], ['out', 'Out'], ['pending', 'Pending'], ['declined', 'Declined']].map(([k, v]) => `<button class="chip ${type === k ? 'on' : ''}" data-f="${k}">${v}</button>`).join('')}<button class="chip" id="csv">Export CSV</button></div>
+  ${arr.length ? `<div class="card"><div class="sec"><h2>Spending by category</h2></div>${arr.map(([c, v]) => `<div class="cat"><div><span>${esc(c)}</span><span>${gbp(v)}</span></div><u><i style="width:${v / max * 100}%"></i></u></div>`).join('')}</div>` : ''}
+  <div class="sec"><h2>Transactions</h2></div><div class="card">${timeline(list, true)}</div>`;
+});
+</script></body></html>

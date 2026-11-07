@@ -1,0 +1,38 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Home · Penny Bank</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#2251FF"><script>try{document.documentElement.dataset.theme=localStorage.getItem('tega-theme')==='dark'?'dark':'light'}catch(e){}</script><link rel="stylesheet" href="/style.css">
+</head><body><div id="app"></div><script src="/app.js"></script><script>
+const COL = ['#2251FF', '#0E1B3D', '#7C9BFF', '#18A957', '#F5A524', '#C9D4FF'];
+boot('home', ({ name, tx, goals, budgets }) => {
+  const { inn, out, bal } = totals(tx), pct = inn + out ? Math.round(inn / (inn + out) * 100) : 0, h = new Date().getHours();
+  const key = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  const ms = [...Array(6)].map((_, i) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - (5 - i)); return { k: key(d), l: d.toLocaleDateString('en-GB', { month: 'short' }) }; });
+  ms.forEach(m => { const t = totals(tx.filter(x => x.created_at.slice(0, 7) === m.k)); m.i = t.inn; m.o = t.out; });
+  const max = Math.max(1, ...ms.map(m => Math.max(m.i, m.o))), cur = ms[5], prev = ms[4];
+  const saved = cur.i ? Math.round((cur.i - cur.o) / cur.i * 100) : 0;
+  const diff = prev.o ? Math.round((cur.o - prev.o) / prev.o * 100) : null;
+  const tipText = !tx.length ? 'Add money to start. Your charts and insights appear as soon as you have activity.' : diff === null ? `You’ve spent ${gbp(cur.o)} so far this month.` : diff <= 0 ? `You’re spending ${Math.abs(diff)}% less than last month. Keep it up.` : `You’re spending ${diff}% more than last month. Check History to see why.`;
+  const cats = {}; tx.filter(t => t.status === 'completed' && isOn(t) && t.amount < 0).forEach(t => cats[t.category] = (cats[t.category] || 0) - t.amount);
+  const arr = Object.entries(cats).sort((a, b) => b[1] - a[1]).slice(0, 6), tot = arr.reduce((a, [, v]) => a + v, 0);
+  let acc = 0; const grad = arr.map(([, v], i) => { const s = acc; acc += v / tot * 100; return `${COL[i]} ${s}% ${acc}%`; }).join(',');
+  const hero = `<div class="hero"><span class="pill"><i>£</i>GBP account</span><div class="bal" data-n="${bal}">${split(bal)}</div><div class="bar"><b style="width:${pct}%"></b></div>
+    <div class="io"><span><small>In</small>${gbp(inn)}</span><span style="text-align:right"><small>Out</small>${gbp(out)}</span></div></div>`;
+  const chart = `<div class="card"><div class="sec"><h2>Last 6 months</h2></div><div class="key"><span><i style="background:var(--blue)"></i>In</span><span><i style="background:#C9D4FF"></i>Out</span></div>
+    <div class="bars">${ms.map(m => `<div><i style="height:${m.i / max * 100}%;background:var(--blue)"></i><i style="height:${m.o / max * 100}%;background:#C9D4FF"></i></div>`).join('')}</div>
+    <div class="mlab">${ms.map(m => `<span>${m.l}</span>`).join('')}</div></div>`;
+  const spend = `<div class="card"><div class="sec"><h2>Where it goes</h2></div>${arr.length ? `<div class="drow"><div class="donut" style="background:conic-gradient(${grad})"></div>
+    <div class="lg">${arr.map(([c, v], i) => `<div><i style="background:${COL[i]}"></i>${esc(c)} · ${Math.round(v / tot * 100)}%</div>`).join('')}</div></div>` : '<div class="empty">No spending yet.</div>'}</div>`;
+  const empty = tx.length ? '' : `<div class="card" style="text-align:center"><h2 style="margin-bottom:8px">Welcome to Penny Bank</h2><p class="mute" style="margin-bottom:16px">Your account is empty. Add your first money to get started.</p><a class="chip dark" href="/payments?modo=add" style="display:inline-block">Add money</a></div>`;
+  const spent = spentByCat(tx), bl = budgets.filter(isOn).map(b => ({ ...b, s: spent[b.category] || 0 })).sort((a, b) => b.s / b.amount - a.s / a.amount).slice(0, 3);
+  const bud = `<div class="card"><div class="sec"><h2>Budgets</h2><a href="/plans">Manage</a></div>${bl.length ? bl.map(b => { const p = b.s / b.amount * 100; return `<div class="cat"><div><span>${esc(b.category)}</span><span>${gbp(b.s)} / ${gbp(b.amount)}</span></div>${progress(p, p >= 100 ? 'bad' : p >= 80 ? 'warn' : '')}</div>`; }).join('') : '<div class="empty">No budgets yet. <a href="/plans">Set one</a></div>'}</div>`;
+  const gl = goals.filter(isOn).slice(0, 3);
+  const gol = `<div class="card"><div class="sec"><h2>Goals</h2><a href="/plans">Manage</a></div>${gl.length ? gl.map(g => `<div class="cat"><div><span>${esc(g.name)}</span><span>${gbp(g.saved)} / ${gbp(g.target)}</span></div>${progress(g.saved / g.target * 100, g.saved >= g.target ? 'done' : '')}</div>`).join('') : '<div class="empty">No goals yet. <a href="/plans">Create one</a></div>'}</div>`;
+  return header(h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening', name) +
+  `<div class="hgrid two">${hero}${chart}</div>` + empty +
+  `<div class="chips"><a class="chip dark" href="/payments?modo=add">Add money</a><a class="chip" href="/payments">Send</a><a class="chip" href="/plans">Plans</a><a class="chip" href="/historico">History</a></div>
+  <div class="stat3"><div class="card"><span class="mute">Spent this month</span><div class="bal" data-n="${cur.o}" data-f="gbp">${gbp(cur.o)}</div></div><div class="card"><span class="mute">Saved</span><div class="bal" data-n="${saved}" data-f="pct">${saved}%</div></div><div class="card"><span class="mute">Transactions</span><div class="bal" data-n="${tx.length}" data-f="int">${tx.length}</div></div></div>
+  <div class="tip" style="margin-bottom:20px"><small>Insight</small>${tipText}</div>
+  <div class="hgrid eq">${spend}<div class="card"><div class="sec"><h2>Recent activity</h2><a href="/historico">See all</a></div>${timeline(tx.slice(0, 5))}</div></div>
+  <div class="hgrid plans">${bud}${gol}</div>`;
+});
+</script></body></html>
