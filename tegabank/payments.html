@@ -1,0 +1,23 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Payments · Tega Bank</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"><meta name="theme-color" content="#2251FF"><link rel="stylesheet" href="/style.css">
+</head><body><div id="app"></div><script src="/app.js"></script><script>
+let add = new URLSearchParams(location.search).get('modo') === 'add', msg = null;
+window.bind = (ctx, render) => {
+  document.querySelectorAll('[data-pay]').forEach(b => b.onclick = () => { add = b.dataset.pay === 'add'; msg = null; render(); });
+  document.getElementById('payf').onsubmit = async e => {
+    e.preventDefault();
+    const f = new FormData(e.target), amt = Math.abs(+f.get('amount'));
+    if (!add && amt > totals(ctx.tx).bal) { msg = ['err', 'Not enough balance for this payment.']; return render(); }
+    try { await api('/api/transactions', 'POST', { title: f.get('title'), category: f.get('category'), amount: add ? amt : -amt }); msg = ['ok', add ? 'Money added.' : 'Payment sent.']; }
+    catch (err) { msg = ['err', err.message]; }
+    render();
+  };
+};
+boot('payments', ({ tx }) => `<h1 class="page-h">Payments</h1><p class="mute">Balance ${gbp(totals(tx).bal)}</p>
+<div class="seg"><button data-pay="send" class="${add ? '' : 'on'}">Send</button><button data-pay="add" class="${add ? 'on' : ''}">Add money</button></div>
+<form id="payf" class="card"><label>Amount (£)</label><input class="big" name="amount" type="number" step="0.01" min="0.01" placeholder="0.00" required>
+<label>${add ? 'Source' : 'Recipient or description'}</label><input name="title" required>
+<label>Category</label><select name="category">${(add ? ['Income', 'Transfer'] : ['Food', 'Bills', 'Subscriptions', 'Transport', 'Shopping', 'Other']).map(c => `<option>${c}</option>`).join('')}</select>
+${msg ? `<p class="msg ${msg[0]}">${esc(msg[1])}</p>` : ''}<button class="cta">${add ? 'Add money' : 'Send payment'}</button></form>`);
+</script></body></html>
